@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Finger Picker">
+<meta name="theme-color" content="#08080f">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>Finger Picker</title>
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+:root{--bg:#08080f;--surface:#11111c;--border:rgba(255,255,255,0.08);--muted:rgba(255,255,255,0.35);}
+html,body{
+  width:100%;height:100%;overflow:hidden;
+  background:var(--bg);color:white;
+  font-family:'Unbounded',sans-serif;
+  touch-action:none;user-select:none;
+  /* Fix voor iOS standalone */
+  position:fixed;top:0;left:0;right:0;bottom:0;
+}
+.screen{
+  position:absolute;inset:0;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:24px;
+  padding-top:max(60px,env(safe-area-inset-top,20px) + 20px);
+  padding-bottom:max(24px,env(safe-area-inset-bottom,0px) + 16px);
+  transition:opacity 0.3s,transform 0.3s;
+}
+.screen.hidden{opacity:0;pointer-events:none;transform:scale(0.97);}
+
+/* SETUP */
+#setup-screen{gap:0;justify-content:flex-start;}
+.logo{font-size:52px;margin-bottom:8px;text-align:center;animation:float 3s ease-in-out infinite;}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+.title{font-size:24px;font-weight:900;letter-spacing:-1px;margin-bottom:4px;}
+.sub{font-size:10px;color:var(--muted);letter-spacing:3px;text-transform:uppercase;margin-bottom:28px;}
+
+.toggle{display:flex;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:4px;gap:4px;width:100%;max-width:320px;margin-bottom:20px;}
+.tbtn{flex:1;padding:11px;border-radius:10px;border:none;background:transparent;color:var(--muted);font-family:'Unbounded',sans-serif;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;cursor:pointer;transition:all 0.2s;}
+.tbtn.on{background:white;color:#08080f;}
+
+.players{width:100%;max-width:320px;display:flex;flex-direction:column;gap:8px;max-height:240px;overflow-y:auto;margin-bottom:12px;}
+.players::-webkit-scrollbar{display:none;}
+.prow{display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:10px 14px;}
+.pdot{width:11px;height:11px;border-radius:50%;flex-shrink:0;}
+.pinput{flex:1;background:transparent;border:none;outline:none;font-family:'Unbounded',sans-serif;font-size:13px;color:white;}
+.pinput::placeholder{color:var(--muted);}
+.pdel{background:transparent;border:none;color:var(--muted);font-size:20px;cursor:pointer;padding:2px 6px;}
+
+.addbtn{width:100%;max-width:320px;padding:11px;background:transparent;border:1px dashed rgba(255,255,255,0.12);border-radius:12px;color:var(--muted);font-family:'Unbounded',sans-serif;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;cursor:pointer;margin-bottom:16px;}
+
+.startbtn{width:100%;max-width:320px;padding:18px;background:white;border:none;border-radius:16px;color:#08080f;font-family:'Unbounded',sans-serif;font-size:13px;font-weight:900;letter-spacing:1px;text-transform:uppercase;cursor:pointer;margin-bottom:12px;}
+.startbtn:active{transform:scale(0.97);}
+.scorelink{font-size:11px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;cursor:pointer;text-decoration:underline;text-underline-offset:3px;}
+
+/* GAME */
+#game-screen{padding:0;}
+.topbar{position:absolute;top:0;left:0;right:0;display:flex;align-items:center;justify-content:space-between;padding:max(20px,env(safe-area-inset-top,0px) + 12px) 20px 0;z-index:10;pointer-events:none;}
+.backbtn{pointer-events:all;background:rgba(255,255,255,0.07);border:1px solid var(--border);border-radius:100px;padding:8px 16px;font-size:10px;color:var(--muted);font-family:'Unbounded',sans-serif;font-weight:700;letter-spacing:1px;text-transform:uppercase;cursor:pointer;}
+.badge{background:rgba(255,255,255,0.07);border:1px solid var(--border);border-radius:100px;padding:8px 14px;font-size:10px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;white-space:nowrap;}
+.hint{position:absolute;bottom:max(36px,env(safe-area-inset-bottom,0px)+20px);left:50%;transform:translateX(-50%);font-size:11px;color:rgba(255,255,255,0.15);letter-spacing:2px;text-transform:uppercase;white-space:nowrap;pointer-events:none;transition:opacity 0.3s;}
+#pbar{position:absolute;bottom:0;left:0;height:3px;background:white;width:0%;opacity:0.4;display:none;}
+#cdoverlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;}
+.cdnum{font-size:200px;font-weight:900;opacity:0;transform:scale(1.5);transition:none;line-height:1;}
+.cdnum.show{opacity:0.06;transform:scale(1);transition:opacity 0.1s,transform 0.6s cubic-bezier(0.34,1.56,0.64,1);}
+
+/* DOTS */
+.fdot{position:absolute;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;transform:translate(-50%,-50%) scale(0);animation:dpop 0.2s cubic-bezier(0.34,1.56,0.64,1) forwards;pointer-events:none;border:2px solid;}
+@keyframes dpop{to{transform:translate(-50%,-50%) scale(1)}}
+.dnum{font-size:22px;font-weight:900;line-height:1;}
+.dname{font-size:9px;color:rgba(255,255,255,0.7);max-width:78px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:2px;}
+.fdot.win{animation:wpop 0.5s cubic-bezier(0.34,1.56,0.64,1) forwards;z-index:20;}
+@keyframes wpop{0%{transform:translate(-50%,-50%) scale(1)}50%{transform:translate(-50%,-50%) scale(1.5)}100%{transform:translate(-50%,-50%) scale(1.25)}}
+.fdot.lose{animation:lout 0.3s ease-in forwards;}
+@keyframes lout{to{transform:translate(-50%,-50%) scale(0);opacity:0}}
+.rring{position:absolute;border-radius:50%;border:2px solid;transform:translate(-50%,-50%) scale(1);animation:rexp 0.7s ease-out forwards;pointer-events:none;}
+@keyframes rexp{to{transform:translate(-50%,-50%) scale(3.5);opacity:0}}
+
+/* WINNER */
+#winner-screen{gap:10px;z-index:100;}
+.wavatar{width:120px;height:120px;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;border:3px solid;margin-bottom:8px;animation:ain 0.5s cubic-bezier(0.34,1.56,0.64,1);position:relative;}
+@keyframes ain{from{transform:scale(0) rotate(-10deg);opacity:0}to{transform:scale(1) rotate(0);opacity:1}}
+.wavatar::before{content:'👑';position:absolute;top:-30px;font-size:30px;animation:cdrop 0.4s cubic-bezier(0.34,1.56,0.64,1) 0.3s both;}
+@keyframes cdrop{from{transform:translateY(-20px);opacity:0}to{transform:translateY(0);opacity:1}}
+.wlabel{font-size:10px;letter-spacing:4px;text-transform:uppercase;color:var(--muted);animation:fup 0.4s ease 0.2s both;}
+.wnum{font-size:40px;font-weight:900;line-height:1;}
+.wname{font-size:10px;color:rgba(255,255,255,0.7);max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:3px;}
+.wtitle{font-size:32px;font-weight:900;letter-spacing:-1px;animation:fup 0.4s ease 0.3s both;text-align:center;}
+@keyframes fup{from{transform:translateY(12px);opacity:0}to{transform:translateY(0);opacity:1}}
+.wactions{display:flex;gap:10px;margin-top:24px;animation:fup 0.4s ease 0.5s both;}
+.pbtn{padding:14px 28px;background:white;color:#08080f;border:none;border-radius:100px;font-family:'Unbounded',sans-serif;font-size:11px;font-weight:900;letter-spacing:1px;text-transform:uppercase;cursor:pointer;}
+.sbtn{padding:14px 28px;background:transparent;color:var(--muted);border:1px solid var(--border);border-radius:100px;font-family:'Unbounded',sans-serif;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;cursor:pointer;}
+
+/* SCORE */
+#score-screen{justify-content:flex-start;gap:0;}
+.sheader{text-align:center;margin-bottom:24px;}
+.stitle{font-size:20px;font-weight:900;}
+.ssub{font-size:10px;color:var(--muted);letter-spacing:3px;text-transform:uppercase;margin-top:4px;}
+.slist{width:100%;max-width:320px;display:flex;flex-direction:column;gap:8px;max-height:360px;overflow-y:auto;margin-bottom:20px;}
+.slist::-webkit-scrollbar{display:none;}
+.srow{display:flex;align-items:center;gap:12px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 16px;}
+.srank{font-size:16px;width:24px;text-align:center;}
+.sdot{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
+.sname{flex:1;font-size:12px;font-weight:700;}
+.swins{font-size:20px;font-weight:900;}
+.swlabel{font-size:9px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-left:3px;}
+.sempty{text-align:center;color:var(--muted);font-size:12px;padding:40px 0;}
+
+/* CONFETTI */
+.cp{position:fixed;top:-20px;pointer-events:none;z-index:999;animation:cfall linear forwards;}
+@keyframes cfall{0%{transform:translateY(0) rotate(0deg);opacity:1}80%{opacity:1}100%{transform:translateY(110vh) rotate(720deg);opacity:0}}
+</style>
+</head>
+<body>
+
+<!-- SETUP -->
+<div class="screen" id="setup-screen">
+  <div class="logo">👆</div>
+  <div class="title">Finger Picker</div>
+  <div class="sub">wie is de winnaar?</div>
+  <div class="toggle">
+    <button class="tbtn on" id="tnumbers" onclick="setMode('numbers')">Nummers</button>
+    <button class="tbtn" id="tnames" onclick="setMode('names')">Namen</button>
+  </div>
+  <div class="players" id="players" style="display:none"></div>
+  <button class="addbtn" id="addbtn" style="display:none" onclick="addPlayer()">+ Speler toevoegen</button>
+  <button class="startbtn" onclick="startGame()">Spelen 🎮</button>
+  <div class="scorelink" onclick="showScore()">🏆 Scorebord</div>
+</div>
+
+<!-- GAME -->
+<div class="screen hidden" id="game-screen">
+  <div class="topbar">
+    <button class="backbtn" onclick="goBack()">← Terug</button>
+    <div class="badge" id="badge">Leg vingers neer</div>
+  </div>
+  <div id="cdoverlay"><div class="cdnum" id="cdnum">3</div></div>
+  <div class="hint" id="hint">Leg 2+ vingers op het scherm</div>
+  <div id="pbar"></div>
+</div>
+
+<!-- WINNER -->
+<div class="screen hidden" id="winner-screen">
+  <div class="wlabel">De winnaar is</div>
+  <div class="wavatar" id="wavatar">
+    <div class="wnum" id="wnum">1</div>
+    <div class="wname" id="wname" style="display:none"></div>
+  </div>
+  <div class="wtitle" id="wtitle">Speler 1</div>
+  <div class="wactions">
+    <button class="pbtn" onclick="playAgain()">Opnieuw</button>
+    <button class="sbtn" onclick="showScore()">Scorebord</button>
+  </div>
+</div>
+
+<!-- SCORE -->
+<div class="screen hidden" id="score-screen">
+  <div class="sheader">
+    <div class="stitle">🏆 Scorebord</div>
+    <div class="ssub">Alle rondes</div>
+  </div>
+  <div class="slist" id="slist"></div>
+  <button class="pbtn" onclick="go('setup-screen')">Terug</button>
+  <button class="sbtn" style="margin-top:10px" onclick="clearScores()">Reset</button>
+</div>
+
+<script>
+const COLORS=['#FF6B6B','#FFD93D','#6BCB77','#4D96FF','#FF6BD6','#FF9F43','#48DBFB','#A29BFE','#fd79a8','#00b894','#e17055','#74b9ff'];
+let mode='numbers';
+let players=[{name:'Speler 1',color:COLORS[0]},{name:'Speler 2',color:COLORS[1]}];
+let scores={};
+let touches={};
+let state='idle';
+let cdTimer=null;
+let fingerCount=0;
+
+try{const s=localStorage.getItem('fp2');if(s)scores=JSON.parse(s);}catch(e){}
+
+// Audio
+let actx=null;
+function ac(){if(!actx)actx=new(window.AudioContext||window.webkitAudioContext)();return actx;}
+function tone(f,t,d,v=0.12){try{const c=ac(),o=c.createOscillator(),g=c.createGain();o.connect(g);g.connect(c.destination);o.type=t;o.frequency.value=f;g.gain.setValueAtTime(v,c.currentTime);g.gain.exponentialRampToValueAtTime(0.001,c.currentTime+d);o.start();o.stop(c.currentTime+d);}catch(e){}}
+function sTap(){tone(440,'sine',0.08,0.1);}
+function sCD(){tone(330,'triangle',0.12,0.15);}
+function sWin(){tone(523,'sine',0.15,0.2);setTimeout(()=>tone(659,'sine',0.15,0.2),150);setTimeout(()=>tone(784,'sine',0.3,0.3),280);}
+function sLose(){tone(180,'sawtooth',0.2,0.08);}
+function vib(p){try{navigator.vibrate&&navigator.vibrate(p);}catch(e){}}
+
+// Mode
+function setMode(m){
+  mode=m;
+  document.getElementById('tnumbers').classList.toggle('on',m==='numbers');
+  document.getElementById('tnames').classList.toggle('on',m==='names');
+  document.getElementById('players').style.display=m==='names'?'flex':'none';
+  document.getElementById('addbtn').style.display=m==='names'?'block':'none';
+  if(m==='names')renderPlayers();
+}
+
+function renderPlayers(){
+  const c=document.getElementById('players');c.innerHTML='';
+  players.forEach((p,i)=>{
+    const r=document.createElement('div');r.className='prow';
+    r.innerHTML=`<div class="pdot" style="background:${p.color}"></div>
+    <input class="pinput" type="text" placeholder="Naam ${i+1}" value="${p.name}" maxlength="14" oninput="players[${i}].name=this.value">
+    ${players.length>2?`<button class="pdel" onclick="removePlayer(${i})">×</button>`:''}`;
+    c.appendChild(r);
+  });
+}
+
+function addPlayer(){
+  if(players.length>=12)return;
+  players.push({name:`Speler ${players.length+1}`,color:COLORS[players.length%COLORS.length]});
+  renderPlayers();
+}
+function removePlayer(i){if(players.length<=2)return;players.splice(i,1);renderPlayers();}
+
+// Screens
+function go(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.add('hidden'));
+  document.getElementById(id).classList.remove('hidden');
+}
+
+function startGame(){
+  go('game-screen');
+  clearDots();touches={};fingerCount=0;state='idle';
+  document.getElementById('hint').style.opacity='1';
+  document.getElementById('badge').textContent='Leg vingers neer';
+}
+
+function goBack(){
+  cancelCD();clearDots();touches={};fingerCount=0;state='idle';
+  go('setup-screen');
+}
+
+function playAgain(){
+  clearDots();touches={};fingerCount=0;state='idle';
+  go('game-screen');
+  document.getElementById('hint').style.opacity='1';
+  document.getElementById('badge').textContent='Leg vingers neer';
+}
+
+// Score
+function showScore(){
+  const list=document.getElementById('slist');list.innerHTML='';
+  const sorted=Object.entries(scores).sort((a,b)=>b[1]-a[1]);
+  if(!sorted.length){list.innerHTML='<div class="sempty">Nog geen rondes gespeeld</div>';}
+  else{
+    const medals=['🥇','🥈','🥉'];
+    sorted.forEach(([name,wins],i)=>{
+      const color=players.find(p=>p.name===name)?.color||COLORS[i%COLORS.length];
+      const r=document.createElement('div');r.className='srow';
+      r.innerHTML=`<div class="srank">${medals[i]||i+1}</div><div class="sdot" style="background:${color}"></div><div class="sname">${name}</div><div><span class="swins" style="color:${color}">${wins}</span><span class="swlabel">wins</span></div>`;
+      list.appendChild(r);
+    });
+  }
+  go('score-screen');
+}
+
+function clearScores(){scores={};try{localStorage.removeItem('fp2');}catch(e){}showScore();}
+function saveScores(){try{localStorage.setItem('fp2',JSON.stringify(scores));}catch(e){}}
+
+// Game helpers
+function getPlayer(idx){
+  if(mode==='names')return players[(idx-1)%players.length];
+  return{name:`${idx}`,color:COLORS[(idx-1)%COLORS.length]};
+}
+
+function clearDots(){document.querySelectorAll('.fdot,.rring').forEach(e=>e.remove());}
+
+function updateBadge(){
+  const n=Object.keys(touches).length;
+  const b=document.getElementById('badge');
+  if(n===0)b.textContent='Leg vingers neer';
+  else if(n===1)b.textContent='1 vinger — meer!';
+  else b.textContent=`${n} vingers — wachten...`;
+}
+
+function mkDot(x,y,player,idx){
+  const size=mode==='names'?86:72;
+  const d=document.createElement('div');
+  d.className='fdot';
+  d.style.cssText=`left:${x}px;top:${y}px;width:${size}px;height:${size}px;background:${player.color}18;border-color:${player.color};box-shadow:0 0 40px ${player.color}44;`;
+  const n=document.createElement('div');n.className='dnum';n.style.color=player.color;
+  n.textContent=mode==='names'?idx:player.name;
+  d.appendChild(n);
+  if(mode==='names'){const nm=document.createElement('div');nm.className='dname';nm.textContent=player.name;d.appendChild(nm);}
+  document.getElementById('game-screen').appendChild(d);
+  // Ripple
+  const r=document.createElement('div');r.className='rring';
+  r.style.cssText=`left:${x}px;top:${y}px;width:${size}px;height:${size}px;border-color:${player.color};`;
+  document.getElementById('game-screen').appendChild(r);
+  setTimeout(()=>r.remove(),700);
+  return d;
+}
+
+function startCD(){
+  if(state!=='counting')return;
+  if(Object.keys(touches).length<2)return;
+  document.getElementById('hint').style.opacity='0';
+  const pb=document.getElementById('pbar');
+  pb.style.display='block';pb.style.transition='none';pb.style.width='0%';
+  setTimeout(()=>{pb.style.transition='width 2500ms linear';pb.style.width='100%';},20);
+  const cd=document.getElementById('cdnum');
+  let c=3;cd.textContent=c;cd.classList.add('show');sCD();
+  const tick=()=>{
+    c--;cd.classList.remove('show');
+    setTimeout(()=>{
+      if(c<=0){selectWinner();return;}
+      cd.textContent=c;cd.classList.add('show');sCD();
+      cdTimer=setTimeout(tick,833);
+    },80);
+  };
+  cdTimer=setTimeout(tick,833);
+}
+
+function cancelCD(){
+  clearTimeout(cdTimer);cdTimer=null;
+  document.getElementById('cdnum').classList.remove('show');
+  const pb=document.getElementById('pbar');
+  pb.style.transition='none';pb.style.width='0%';pb.style.display='none';
+}
+
+function selectWinner(){
+  state='selecting';
+  const ids=Object.keys(touches);
+  if(!ids.length){playAgain();return;}
+  const wid=ids[Math.floor(Math.random()*ids.length)];
+  ids.forEach(id=>{
+    touches[id].el.classList.add(id===wid?'win':'lose');
+    if(id!==wid)sLose();
+  });
+  vib([30,50,30,50,200]);sWin();
+  setTimeout(()=>showWinner(touches[wid]),600);
+}
+
+function showWinner(w){
+  state='winner';
+  const av=document.getElementById('wavatar');
+  const wn=document.getElementById('wnum');
+  const wname=document.getElementById('wname');
+  const wt=document.getElementById('wtitle');
+  av.style.borderColor=w.player.color;
+  av.style.background=w.player.color+'15';
+  av.style.boxShadow=`0 0 60px ${w.player.color}44`;
+  wn.textContent=mode==='names'?w.fi:w.player.name;
+  wn.style.color=w.player.color;
+  if(mode==='names'){wname.style.display='block';wname.textContent=w.player.name;wt.textContent=w.player.name;}
+  else{wname.style.display='none';wt.textContent=`Vinger ${w.player.name}`;}
+  wt.style.color=w.player.color;
+  const key=mode==='names'?w.player.name:`Vinger ${w.player.name}`;
+  scores[key]=(scores[key]||0)+1;saveScores();
+  go('winner-screen');
+  confetti(w.player.color);
+}
+
+function confetti(wc){
+  const cols=[...COLORS,wc,wc,wc];
+  for(let i=0;i<100;i++){
+    setTimeout(()=>{
+      const p=document.createElement('div');p.className='cp';
+      const s=Math.random()*10+5;
+      p.style.cssText=`left:${Math.random()*100}vw;width:${s}px;height:${s}px;background:${cols[Math.floor(Math.random()*cols.length)]};border-radius:${Math.random()>.5?'50%':'3px'};animation-duration:${Math.random()*1.5+1.5}s;animation-delay:${Math.random()*0.3}s;`;
+      document.body.appendChild(p);setTimeout(()=>p.remove(),3500);
+    },i*12);
+  }
+}
+
+// ── TOUCH EVENTS ──
+// Gebruik document én game-screen voor maximale compatibiliteit op iOS PWA
+function handleTouchStart(e){
+  e.preventDefault();e.stopPropagation();
+  if(state==='winner'||state==='selecting')return;
+  if(document.getElementById('game-screen').classList.contains('hidden'))return;
+  cancelCD();
+  if(state==='idle')state='counting';
+  Array.from(e.changedTouches).forEach(t=>{
+    if(touches[t.identifier])return;
+    fingerCount++;
+    const player=getPlayer(fingerCount);
+    const dot=mkDot(t.clientX,t.clientY,player,fingerCount);
+    touches[t.identifier]={el:dot,player,fi:fingerCount};
+    sTap();vib(15);
+  });
+  updateBadge();
+  if(Object.keys(touches).length>=2)startCD();
+}
+
+function handleTouchMove(e){
+  e.preventDefault();e.stopPropagation();
+  Array.from(e.changedTouches).forEach(t=>{
+    const touch=touches[t.identifier];
+    if(!touch)return;
+    touch.el.style.left=t.clientX+'px';
+    touch.el.style.top=t.clientY+'px';
+  });
+}
+
+function handleTouchEnd(e){
+  e.preventDefault();e.stopPropagation();
+  if(state==='selecting'||state==='winner')return;
+  if(document.getElementById('game-screen').classList.contains('hidden'))return;
+  cancelCD();
+  document.getElementById('hint').style.opacity='1';
+  Array.from(e.changedTouches).forEach(t=>{
+    const touch=touches[t.identifier];
+    if(!touch)return;
+    touch.el.style.animation='lout 0.2s ease forwards';
+    setTimeout(()=>touch.el.remove(),200);
+    delete touches[t.identifier];
+  });
+  updateBadge();
+  const n=Object.keys(touches).length;
+  if(n===0){state='idle';fingerCount=0;}
+  else if(n>=2)startCD();
+}
+
+// Registreer op BEIDE document en game-screen
+const opts={passive:false,capture:true};
+document.addEventListener('touchstart',handleTouchStart,opts);
+document.addEventListener('touchmove',handleTouchMove,opts);
+document.addEventListener('touchend',handleTouchEnd,opts);
+document.addEventListener('touchcancel',handleTouchEnd,opts);
+</script>
+</body>
+</html>
