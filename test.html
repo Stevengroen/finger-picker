@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  background: #000;
+  color: white;
+  font-family: sans-serif;
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 20px;
+  overflow: hidden;
+}
+#status {
+  font-size: 24px;
+  text-align: center;
+  padding: 20px;
+}
+#toucharea {
+  width: 300px;
+  height: 300px;
+  background: #222;
+  border: 2px solid #555;
+  border-radius: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  color: #888;
+  text-align: center;
+}
+</style>
+</head>
+<body>
+<div id="status">Raak het vlak aan</div>
+<div id="toucharea">Raak hier aan</div>
+
+<script>
+const area = document.getElementById('toucharea');
+const status = document.getElementById('status');
+
+// Test alle methodes
+area.addEventListener('touchstart', function(e) {
+  e.preventDefault();
+  status.textContent = '✅ Touch werkt! ' + e.touches.length + ' vinger(s)';
+  area.style.background = '#004400';
+}, { passive: false });
+
+area.addEventListener('touchend', function(e) {
+  e.preventDefault();
+  status.textContent = 'Los maar weer';
+  area.style.background = '#222';
+}, { passive: false });
+
+// Fallback click
+area.addEventListener('click', function() {
+  status.textContent = '✅ Click werkt!';
+});
+
+status.textContent = 'Pagina geladen - raak vlak aan';
+</script>
+</body>
+</html>
